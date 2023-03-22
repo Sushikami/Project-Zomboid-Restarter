@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# ====================================================================
+# Script: Project Zomboid Automated Server Restarter Script
+# Creator: Sushikami, 2023
+# ====================================================================
+#
+# Prerequisites:
+# 1. run "crontab -e"
+# 2. incrontab, add the following lines:
+#
+#    @reboot /bin/bash /home/ubuntu/pz_server.sh"
+#    0 6 * * * /bin/bash /home/ubuntu/pz_server.sh (runs the script every 6AM daily)
+#
+# 2.1 refer to https://crontab.guru/ for datetime settings for the cron job
+#
+# Dependencies: mcrcon, curl
+
+# variables
+HOST='earth22b.online'
+PORT='27015'
+PW='earth22b'
+WEBHOOK='https://discord.com/api/webhooks/1060537371478728754/N_YlO1IacsfCCIjsMSqXNxftAOQxGA5cwDGL8jv4wjOBufVzHVwLt7EMfr7f4CWBUYuY'
+
+# log the time and date
+/bin/date >> /home/ubuntu/server_restart.log
+
+# get the server PID
+serverPID=`pgrep ProjectZomboid`
+
+# initiate shutdown sequence if the server is running
+if [[ ! -z "$serverPID" ]]
+then
+  /bin/curl -H "Content-Type: application/json" -d '{"username": "Earth-22B", "content": "Earth-22B will restart in 5 min(s) @here"}' $WEBHOOK
+  echo "server is running, initiating shutdown sequence"
+  echo "press CTRL-C to stop"
+  sleep 3s
+
+  # initiate countdown sequence warning
+  for i in {5..1}
+  do
+    mcrcon -H $HOST -P $PORT -p $PW "servermsg \"server restart in $i min(s)\""
+    sleep 1m
+  done
+
+  # final warning
+  for i in {1..5}
+  do
+    mcrcon -H $HOST -P $PORT -p $PW "servermsg \"server restart is imminent\""
+    sleep 1s
+  done
+
+  # gracefully shutdown the server
+  mcrcon -H $HOST -P $PORT -p $PW "quit"
+
+  # wait for shutdown sequence to complete
+  echo "waiting for server shutdown..."
+  sleep 20s
+  echo "initiating server..."
+fi
+
+# cd into the PZ server directory and run the server in a dettached screen
+echo "starting the server (access the console with screen -r)"
+cd /home/ubuntu/Steam/steamapps/common/Project\ Zomboid\ Dedicated\ Server/ && screen -dmS EARTH22b /bin/bash start-server.sh
+
+# announce server up state
+sleep 1m
+/bin/curl -H "Content-Type: application/json" -d '{"username": "Earth-22B", "content": "Earth-22B is starting up! @here"}' $WEBHOOK
